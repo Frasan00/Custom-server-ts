@@ -1,2 +1,3 @@
-const a  = 2
-console.log(a)
+import { Server } from "../src/Server-ts";
+
+const server = new Server({ port: 5000 });
