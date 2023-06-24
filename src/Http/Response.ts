@@ -83,8 +83,7 @@ export class Response {
 
     public getResponse(){
         return `${this.header.baseHeader}\r\nContent-Type: ${this.header.contentType}\r\n
-${this.header.value}\r\n
-        `
+${this.header.value}\r\n`
     }
 
 }
