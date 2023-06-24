@@ -2,7 +2,6 @@ import net from "net";
 import { Request } from "./Request";
 import { Response } from "./Response";
 import { NextFunction } from "./NextFunction";
-import { Router } from "./Router";
 
 interface IServerInput {
     readonly keepAliveDelay?: number | 1000;
@@ -15,6 +14,10 @@ export type MiddlewareType = (req: Request, res: Response, nextFunc: NextFunctio
 
 export type HandlerType = (req: Request, res: Response) => any;
 
+type RouteType = {
+    [key: string]: HandlerType;
+} | null;
+
 export enum RequestEnum {
     GET = "GET",
     POST = "POST",
@@ -25,7 +28,10 @@ export enum RequestEnum {
 export class Server {
 
     protected server: net.Server;
-    protected router: Router;
+    protected getRoutes: RouteType | null;
+    protected postRoutes: RouteType | null;
+    protected putRoutes: RouteType | null;
+    protected deleteRoutes: RouteType | null;
 
     public constructor(input?: IServerInput){
         const config = {
@@ -41,26 +47,33 @@ export class Server {
             socket.on("data", (data) => { this.handleData(data, socket); });
         });
 
-        this.router = new Router({ basePath: "/" });
+        this.getRoutes = null;
+        this.postRoutes = null;
+        this.putRoutes = null;
+        this.deleteRoutes = null;
     }
 
     private handleData(data: Buffer, socket: net.Socket){
         const stringedData = data.toString();
         const requestMethod = stringedData.split("\n")[0].split(" ")[0];
-        const endpoint = stringedData.split("\n")[0].split(" ")[1];
+        const endPoint = stringedData.split("\n")[0].split(" ")[1];
 
-        const response = new Response({
-            value: "Okkk",
-            contentType: "text/plain",
-            status: 200
-        });
-        
-        socket.write(response.getResponse(), "utf-8");
-        socket.end();
+        switch(requestMethod){
+            case("GET"):
+                if(!this.getRoutes || !this.getRoutes.hasOwnProperty(endPoint)) throw new Error("Cannot GET "+endPoint);
+                this.getRoutes.endPoint
+        }
+
+    }
+
+    public get(endPoint: string, handler: HandlerType){
+        const req = new Request();
+        const res = new Response();
+        if(!this.getRoutes || !this.getRoutes.hasOwnProperty(endPoint)) throw new Error("Cannot GET "+endPoint);
+        this.getRoutes.endPoint = handler(req, res);
     }
 
     public listen(port: string | number, cb?: () => void){
         this.server.listen(port, cb ? () => cb() : () => console.log("Server Listening on port "+port));
     }
-    
 }
