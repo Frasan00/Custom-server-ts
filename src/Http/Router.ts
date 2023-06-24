@@ -1,5 +1,4 @@
-import { HandlerType } from "./Server-http";
-import { MiddlewareType } from "./Server-http";
+import { HandlerType, MiddlewareType } from "./Server-http";
 
 interface IRouterInput {
     readonly basePath: string;

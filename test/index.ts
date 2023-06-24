@@ -1,3 +1,4 @@
 import { Server } from "../src/Http/Server-http";
 
-const server = new Server({ port: 5000 });
+const server = new Server();
+server.listen(5000, () => console.log("Server listening on port "+5000));

@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Server = exports.RequestEnum = void 0;
 const net_1 = __importDefault(require("net"));
+const Response_1 = require("./Response");
 const Router_1 = require("./Router");
 var RequestEnum;
 (function (RequestEnum) {
@@ -16,35 +17,31 @@ var RequestEnum;
 class Server {
     constructor(input) {
         const config = {
-            keepAlive: input.keepAliveDelay ? true : false,
-            keepAliveInitialDelay: input.keepAliveDelay
+            keepAlive: (input === null || input === void 0 ? void 0 : input.keepAliveDelay) ? true : false,
+            keepAliveInitialDelay: input === null || input === void 0 ? void 0 : input.keepAliveDelay
         };
         this.server = net_1.default.createServer(config, (socket) => {
-            socket.on("connect", input.onConnection ? input.onConnection : () => console.log("Client connected"));
-            socket.on("error", input.onError ? input.onError : () => console.error("An error occured during connection"));
-            socket.on("close", input.onClose ? input.onClose : () => console.log("Client disconnected "));
+            socket.on("connect", (input === null || input === void 0 ? void 0 : input.onConnection) ? input.onConnection : () => console.log("Client connected"));
+            socket.on("error", (input === null || input === void 0 ? void 0 : input.onError) ? input.onError : () => console.error("An error occured during connection"));
+            socket.on("close", (input === null || input === void 0 ? void 0 : input.onClose) ? input.onClose : () => console.log("Client disconnected "));
             socket.on("data", (data) => { this.handleData(data, socket); });
         });
         this.router = new Router_1.Router({ basePath: "/" });
-        this.server.listen(input.port, input.onServerConnection ? input.onServerConnection : () => { console.log(`Listening on port ${input.port}`); });
     }
     handleData(data, socket) {
         const stringedData = data.toString();
-        const request = stringedData.split("\n")[0].split(" ")[0];
+        const requestMethod = stringedData.split("\n")[0].split(" ")[0];
         const endpoint = stringedData.split("\n")[0].split(" ")[1];
-        socket.write("ksadkaskd");
+        const response = new Response_1.Response({
+            value: "Okkk",
+            contentType: "text/plain",
+            status: 200
+        });
+        socket.write(response.getResponse(), "utf-8");
+        socket.end();
     }
-    get(endpoint, handler, middlewares) {
-        this.router.get(endpoint, handler, middlewares);
-    }
-    post(endpoint, handler, middlewares) {
-        this.router.post(endpoint, handler, middlewares);
-    }
-    update(endpoint, handler, middlewares) {
-        this.router.update(endpoint, handler, middlewares);
-    }
-    delete(endpoint, handler, middlewares) {
-        this.router.delete(endpoint, handler, middlewares);
+    listen(port, cb) {
+        this.server.listen(port, cb ? () => cb() : () => console.log("Server Listening on port " + port));
     }
 }
 exports.Server = Server;
