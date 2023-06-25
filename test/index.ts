@@ -13,9 +13,4 @@ server.get("/", (req, res) => {
     res.status(200).send("text/plain", "Good request");
 });
 
-server.get("/:name/:surname", (req, res) => {
-    console.log("request info:", req);
-    res.status(200).send("text/plain", "Good request");
-})
-
 server.listen(5000, () => console.log("Server listening on port "+5000));

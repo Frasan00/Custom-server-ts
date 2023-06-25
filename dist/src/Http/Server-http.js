@@ -7,6 +7,8 @@ exports.Server = exports.RequestEnum = void 0;
 const net_1 = __importDefault(require("net"));
 const Request_1 = require("./Request");
 const Response_1 = require("./Response");
+const url_1 = __importDefault(require("url"));
+const querystring_1 = __importDefault(require("querystring"));
 var RequestEnum;
 (function (RequestEnum) {
     RequestEnum["GET"] = "GET";
@@ -33,16 +35,24 @@ class Server {
         this.deleteRoutes = {};
     }
     handleData(data, socket) {
-        // request informations
+        // packet validation
         const stringedData = data.toString();
-        console.log(stringedData);
+        if (this.validatePackage(stringedData) === false) {
+            const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
+Invalid HTTP packet was sent, please format your data for an http request\r\n`;
+            socket.write(response);
+            socket.end();
+            return;
+        }
+        ;
+        console.log(stringedData); // to del
+        // request informations
         const requestMethod = stringedData.split(" ")[0];
         const endPoint = stringedData.split(" ")[1].split("?")[0];
         const host = stringedData.split("\n")[1].split(" ")[1].slice(0, -1);
-        const body = this.getBody(stringedData.split("\r\n"));
         const headers = this.getHeaders(stringedData.split("\r\n"));
-        const query_params = stringedData.split(" ")[1].split("?")[1].split("&");
-        const query = this.getQuery(query_params);
+        const body = this.getBody(stringedData.split("\r\n"), headers);
+        const query = this.getQuery(stringedData.split(" ")[1]);
         const req = new Request_1.Request({
             method: requestMethod,
             endpoint: endPoint,
@@ -147,21 +157,33 @@ class Server {
     listen(port, cb) {
         this.server.listen(port, cb ? () => cb() : () => console.log("Server Listening on port " + port));
     }
-    getBody(data) {
+    getBody(data, headers) {
+        // No body provided case
+        const headersKeys = Object.keys(headers);
+        if (data[data.length - 1] === "" || !headersKeys.includes("Content-Type"))
+            return {};
         let body = {};
-        data.forEach((ele) => {
-            if (ele[0] === "{") {
-                return body = JSON.parse(ele);
-            }
-            ;
-        });
+        const contentType = headers["Content-Type"];
+        const bodyStartIndex = data.indexOf("") + 1;
+        const dataBody = data.slice(bodyStartIndex);
+        switch (contentType) {
+            case "application/json":
+                body = JSON.parse(dataBody.join("\n"));
+                break;
+            case "text/plain":
+                body = dataBody.join("\n");
+                break;
+            case "text/html":
+                body = dataBody.join("\n");
+                break;
+        }
         return body;
     }
     getHeaders(data) {
         let header = {};
         data.forEach((ele) => {
             if (ele === "")
-                return;
+                return; // finished headers part
             const splittedEle = ele.split(": ");
             if (splittedEle.length === 2) {
                 header[splittedEle[0]] = splittedEle[1];
@@ -171,13 +193,28 @@ class Server {
         return header;
     }
     getQuery(data) {
-        console.log(data);
-        let query = {};
-        data.forEach((ele) => {
-            const splittedEle = ele.split("=");
-            query[splittedEle[0]] = splittedEle[1];
-        });
-        return query;
+        const parsedUrl = url_1.default.parse(data);
+        if (!parsedUrl.query)
+            return {};
+        return JSON.parse(JSON.stringify(querystring_1.default.parse(parsedUrl.query)));
+    }
+    // validates if a package is correctly formatted for http requests
+    validatePackage(data) {
+        let HttpVersions;
+        (function (HttpVersions) {
+            HttpVersions["HTTP09"] = "HTTP/0.9";
+            HttpVersions["HTTP10"] = "HTTP/1.0";
+            HttpVersions["HTTP11"] = "HTTP/1.1";
+            HttpVersions["HTTP2"] = "HTTP/2";
+            HttpVersions["HTTP3"] = "HTTP/3";
+        })(HttpVersions || (HttpVersions = {}));
+        // basic requirements
+        if (data.length === 0 || !data.includes("\r\n") || !data.includes("Host") || !data.includes("HTTP") || !Object.keys(RequestEnum).includes(data.split(" ")[0]))
+            return false;
+        if (!data.includes("") || Object.keys(HttpVersions).includes(data.split(" ")[2]))
+            return false;
+        // to do: body parsed correctly
+        return true;
     }
 }
 exports.Server = Server;

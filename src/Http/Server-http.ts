@@ -2,6 +2,9 @@ import net from "net";
 import { Request } from "./Request";
 import { Response } from "./Response";
 import { NextFunction } from "./NextFunction";
+import url from "url";
+import queryString from "querystring";
+import { ContentType } from "./types/ContentTypes";
 
 interface IServerInput {
     readonly keepAliveDelay?: number | 1000;
@@ -17,6 +20,8 @@ export type HandlerType = (req: Request, res: Response) => any;
 type RouteType = {
     [key: string]: HandlerType;
 };
+
+type Headers = { [key: string]: string };
 
 export enum RequestEnum {
     GET = "GET",
@@ -56,18 +61,26 @@ export class Server {
     }
 
     private handleData(data: Buffer, socket: net.Socket){
-        // request informations
+        // packet validation
         const stringedData = data.toString();
-        console.log(stringedData)
+        if(this.validatePackage(stringedData) === false) {
+            const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
+Invalid HTTP packet was sent, please format your data for an http request\r\n`;
+            socket.write(response);
+            socket.end();
+            return;
+        };
+        console.log(stringedData) // to del
+
+        // request informations
         const requestMethod = stringedData.split(" ")[0];
         const endPoint = stringedData.split(" ")[1].split("?")[0];
         const host = stringedData.split("\n")[1].split(" ")[1].slice(0, -1);
 
-        const body = this.getBody(stringedData.split("\r\n"));
-        const headers = this.getHeaders(stringedData.split("\r\n"));
+        const headers: Headers = this.getHeaders(stringedData.split("\r\n"));
+        const body = this.getBody(stringedData.split("\r\n"), headers);
 
-        const query_params = stringedData.split(" ")[1].split("?")[1].split("&");
-        const query = this.getQuery(query_params);
+        const query = this.getQuery(stringedData.split(" ")[1]);
 
         const req = new Request({
             method: requestMethod,
@@ -180,35 +193,62 @@ export class Server {
         this.server.listen(port, cb ? () => cb() : () => console.log("Server Listening on port "+port));
     }
 
-    private getBody(data: string[]): Object {
+    private getBody(data: string[], headers: Headers): Object {
+        // No body provided case
+        const headersKeys = Object.keys(headers);
+        if(data[data.length -1] === "" || !headersKeys.includes("Content-Type")) return {};
         let body = {};
-        data.forEach((ele) => {
-            if(ele[0] === "{") { return body = JSON.parse(ele); };
-        })
+        
+        const contentType = headers["Content-Type"];
+        const bodyStartIndex = data.indexOf("") + 1;
+        const dataBody = data.slice(bodyStartIndex);
+        
+        switch(contentType){
+            case "application/json":
+                body = JSON.parse(dataBody.join("\n"));
+                break;
+
+            case "text/plain":
+                body = dataBody.join("\n");
+                break;
+
+            case "text/html":
+                body = dataBody.join("\n");
+                break;
+        }
+        
         return body; 
     }
 
-    private getHeaders(data: string[]): Object {
-        type Header = { [key: string]: string };
-
-        let header: Header = {};
+    private getHeaders(data: string[]): Headers {
+        let header: Headers = {};
         data.forEach((ele) => {
-            if(ele === "") return;
+            if(ele === "") return; // finished headers part
             const splittedEle = ele.split(": ");
             if(splittedEle.length === 2){ header[splittedEle[0]] = splittedEle[1] };
         })
         return header;
     }
 
-    private getQuery(data: string[]): Object{
-        type Query= { [key: string]: string };
+    private getQuery(data: string): Object{
+        const parsedUrl = url.parse(data);
+        if(!parsedUrl.query) return {};
+        return JSON.parse(JSON.stringify(queryString.parse(parsedUrl.query)));
+    }
 
-        let query: Query = {};
-        data.forEach((ele) => {
-            const splittedEle = ele.split("=");
-            query[splittedEle[0]] = splittedEle[1];
-        });
-
-        return query;
+    // validates if a package is correctly formatted for http requests
+    private validatePackage(data: string): boolean{
+        enum HttpVersions {
+            HTTP09 = "HTTP/0.9",
+            HTTP10 = "HTTP/1.0",
+            HTTP11 = "HTTP/1.1",
+            HTTP2 = "HTTP/2",
+            HTTP3 = "HTTP/3",
+        }
+        // basic requirements
+        if(data.length === 0 || !data.includes("\r\n") || !data.includes("Host") || !data.includes("HTTP") || !Object.keys(RequestEnum).includes(data.split(" ")[0])) return false;
+        if(!data.includes("") || Object.keys(HttpVersions).includes(data.split(" ")[2])) return false;
+        // to do: body parsed correctly
+        return true;
     }
 }

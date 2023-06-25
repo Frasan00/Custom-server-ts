@@ -4,6 +4,6 @@ services:
   
   node-app:
     build: .
-    expose:
+    ports:
       - "5000:5000"
       
