@@ -3,11 +3,9 @@ interface IRequestInput {
     readonly endpoint: string;
     readonly params: Object;
     readonly body: Object;
-    readonly headers: HeadersType;
-}
-
-type HeadersType = {
-
+    readonly headers: Object;
+    readonly query: Object;
+    readonly host: string;
 }
 
 export class Request {
@@ -16,7 +14,9 @@ export class Request {
     public endpoint: string;
     public params: Object;
     public body: Object;
-    public headers: HeadersType;
+    public headers: Object;
+    public query: Object;
+    public host: string;
 
     public constructor(input: IRequestInput){
         this.method = input.method;
@@ -24,5 +24,7 @@ export class Request {
         this.params = input.params;
         this.body = input.body;
         this.headers = input.headers;  
+        this.query = input.query;
+        this.host = input.host;
     }
 }

@@ -28,6 +28,7 @@ export enum RequestEnum {
 export class Server {
 
     protected server: net.Server;
+    protected useRoutes: RouteType;
     protected getRoutes: RouteType;
     protected postRoutes: RouteType;
     protected patchRoutes: RouteType;
@@ -47,6 +48,7 @@ export class Server {
             socket.on("data", (data) => { this.handleData(data, socket); });
         });
 
+        this.useRoutes = {};
         this.getRoutes = {};
         this.postRoutes = {};
         this.patchRoutes = {};
@@ -54,26 +56,38 @@ export class Server {
     }
 
     private handleData(data: Buffer, socket: net.Socket){
+        // request informations
         const stringedData = data.toString();
-        const requestMethod = stringedData.split("\n")[0].split(" ")[0];
-        const endPoint = stringedData.split("\n")[0].split(" ")[1];
-        // to do
+        console.log(stringedData)
+        const requestMethod = stringedData.split(" ")[0];
+        const endPoint = stringedData.split(" ")[1].split("?")[0];
+        const host = stringedData.split("\n")[1].split(" ")[1].slice(0, -1);
+
         const params = this.getParams(endPoint);
-        const body = this.getBody(stringedData);
-        const headers = this.getHeaders(stringedData)
+        const body = this.getBody(stringedData.split("\r\n"));
+        const headers = this.getHeaders(stringedData.split("\r\n"));
+
+        const query_params = stringedData.split(" ")[1].split("?")[1].split("&");
+        const query = this.getQuery(query_params);
 
         const req = new Request({
             method: requestMethod,
             endpoint: endPoint,
             params: params,
             body: body,
-            headers: headers
+            headers: headers,
+            query: query,
+            host: host
         });
         const res = new Response();
 
         if (requestMethod === "GET") {
-            if (!this.getRoutes || !this.getRoutes.hasOwnProperty(endPoint)) {
-              throw new Error("Cannot GET " + endPoint);
+            if (this.getRoutes.hasOwnProperty(endPoint) === false) {
+                res.send("text/plain", "Cannot GET " + endPoint);
+                const response = res.getResponse();
+                socket.write(response);
+                socket.end();
+                return;
             }
             this.getRoutes[endPoint](req, res);
             const response = res.getResponse();
@@ -82,8 +96,12 @@ export class Server {
           } 
           
           else if (requestMethod === "POST") {
-            if (!this.postRoutes || !this.postRoutes.hasOwnProperty(endPoint)) {
-              throw new Error("Cannot POST " + endPoint);
+            if (this.postRoutes.hasOwnProperty(endPoint) === false) {
+                res.send("text/plain", "Cannot POST " + endPoint);
+                const response = res.getResponse();
+                socket.write(response);
+                socket.end();
+                return;
             }
             this.postRoutes[endPoint](req, res);
             const response = res.getResponse();
@@ -92,8 +110,12 @@ export class Server {
           } 
           
           else if (requestMethod === "PATCH") {
-            if (!this.patchRoutes || !this.patchRoutes.hasOwnProperty(endPoint)) {
-              throw new Error("Cannot PATCH " + endPoint);
+            if (this.patchRoutes.hasOwnProperty(endPoint) === false) {
+                res.send("text/plain", "Cannot PATCH " + endPoint);
+                const response = res.getResponse();
+                socket.write(response);
+                socket.end();
+                return;
             }
             this.patchRoutes[endPoint](req, res);
             const response = res.getResponse();
@@ -102,8 +124,12 @@ export class Server {
           } 
           
           else if (requestMethod === "DELETE") {
-            if (!this.deleteRoutes || !this.deleteRoutes.hasOwnProperty(endPoint)) {
-              throw new Error("Cannot DELETE " + endPoint);
+            if (this.deleteRoutes.hasOwnProperty(endPoint) === false) {
+                res.send("text/plain", "Cannot DELETE " + endPoint);
+                const response = res.getResponse();
+                socket.write(response);
+                socket.end();
+                return;
             }
             this.deleteRoutes[endPoint](req, res);
             const response = res.getResponse();
@@ -111,7 +137,20 @@ export class Server {
             socket.end();
           } 
           
-          else throw new Error("Request method not supported by this server");    
+          // generic method
+          else if(this.useRoutes.hasOwnProperty(endPoint)){
+            this.useRoutes[endPoint](req, res);
+            const response = res.getResponse();
+            socket.write(response);
+            socket.end();
+          }
+
+          else {
+            res.send("text/plain", `The endpoint ${endPoint} is not handled in any way`);
+            const response = res.getResponse();
+            socket.write(response);
+            socket.end();
+          };    
     }
 
     public get(endPoint: string, handler: HandlerType){
@@ -134,6 +173,11 @@ export class Server {
         this.deleteRoutes[endPoint] = handler;
     }
 
+    public use(endPoint: string, handler: HandlerType){
+        if(this.deleteRoutes.hasOwnProperty(endPoint)) throw new Error(`Endpoint ${endPoint} can't be handle with DELETE request in more than one way`);
+        this.useRoutes[endPoint] = handler;
+    }
+
     public listen(port: string | number, cb?: () => void){
         this.server.listen(port, cb ? () => cb() : () => console.log("Server Listening on port "+port));
     }
@@ -143,11 +187,35 @@ export class Server {
         return {};
     }
 
-    private getBody(data: string){
-        return {};
+    private getBody(data: string[]): Object {
+        let body = {};
+        data.forEach((ele) => {
+            if(ele[0] === "{") { return body = JSON.parse(ele); };
+        })
+        return body; 
     }
 
-    private getHeaders(data: string){
-        return {};
+    private getHeaders(data: string[]): Object {
+        type Header = { [key: string]: string };
+
+        let header: Header = {};
+        data.forEach((ele) => {
+            if(ele === "") return;
+            const splittedEle = ele.split(": ");
+            if(splittedEle.length === 2){ header[splittedEle[0]] = splittedEle[1] };
+        })
+        return header;
+    }
+
+    private getQuery(data: string[]): Object{
+        type Query= { [key: string]: string };
+
+        let query: Query = {};
+        data.forEach((ele) => {
+            const splittedEle = ele.split("=");
+            query[splittedEle[0]] = splittedEle[1];
+        });
+
+        return query;
     }
 }

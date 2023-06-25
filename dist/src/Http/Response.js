@@ -3,10 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Response = void 0;
 class Response {
     constructor() {
+        // Base case when send() isn't used in the cb(req, res)
         this.header = {
             baseHeader: `HTTP/1.1 400`,
             contentType: "text/plain",
-            value: "Error during the http request"
+            value: "Error during http request: NO_VALUE_GIVEN_FOR_RESPONSE_IN_THE_CALLBACK"
         };
     }
     getResponse() {

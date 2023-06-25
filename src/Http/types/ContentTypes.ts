@@ -1,4 +1,4 @@
-export type ResponseType =
+export type ContentType =
   | "application/EDI-X12"
   | "application/EDIFACT"
   | "application/javascript"
