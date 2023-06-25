@@ -63,7 +63,6 @@ export class Server {
         const endPoint = stringedData.split(" ")[1].split("?")[0];
         const host = stringedData.split("\n")[1].split(" ")[1].slice(0, -1);
 
-        const params = this.getParams(endPoint);
         const body = this.getBody(stringedData.split("\r\n"));
         const headers = this.getHeaders(stringedData.split("\r\n"));
 
@@ -73,7 +72,6 @@ export class Server {
         const req = new Request({
             method: requestMethod,
             endpoint: endPoint,
-            params: params,
             body: body,
             headers: headers,
             query: query,
@@ -180,11 +178,6 @@ export class Server {
 
     public listen(port: string | number, cb?: () => void){
         this.server.listen(port, cb ? () => cb() : () => console.log("Server Listening on port "+port));
-    }
-
-    // to do
-    private getParams(endpoint: string){
-        return {};
     }
 
     private getBody(data: string[]): Object {

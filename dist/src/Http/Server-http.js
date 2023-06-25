@@ -39,7 +39,6 @@ class Server {
         const requestMethod = stringedData.split(" ")[0];
         const endPoint = stringedData.split(" ")[1].split("?")[0];
         const host = stringedData.split("\n")[1].split(" ")[1].slice(0, -1);
-        const params = this.getParams(endPoint);
         const body = this.getBody(stringedData.split("\r\n"));
         const headers = this.getHeaders(stringedData.split("\r\n"));
         const query_params = stringedData.split(" ")[1].split("?")[1].split("&");
@@ -47,7 +46,6 @@ class Server {
         const req = new Request_1.Request({
             method: requestMethod,
             endpoint: endPoint,
-            params: params,
             body: body,
             headers: headers,
             query: query,
@@ -149,10 +147,6 @@ class Server {
     listen(port, cb) {
         this.server.listen(port, cb ? () => cb() : () => console.log("Server Listening on port " + port));
     }
-    // to do
-    getParams(endpoint) {
-        return {};
-    }
     getBody(data) {
         let body = {};
         data.forEach((ele) => {
@@ -177,6 +171,7 @@ class Server {
         return header;
     }
     getQuery(data) {
+        console.log(data);
         let query = {};
         data.forEach((ele) => {
             const splittedEle = ele.split("=");
