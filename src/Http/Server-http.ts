@@ -27,7 +27,12 @@ export enum RequestEnum {
     GET = "GET",
     POST = "POST",
     PATCH = "PATCH",
-    DELETE = "DELETE"
+    DELETE = "DELETE",
+    HEAD = "HEAD",
+    PUT = "PUT",
+    CONNECT = "CONNECT",
+    TRACE = "TRACE",
+    OPTIONS = "OPTIONS"
 }
 
 export class Server {
