@@ -2,9 +2,9 @@ import net from "net";
 import { Request } from "./Request";
 import { Response } from "./Response";
 import { NextFunction } from "./NextFunction";
+import bodyParsingMethods from "./bodyParsingMethods";
 import url from "url";
 import queryString from "querystring";
-import { ContentType } from "./types/ContentTypes";
 
 interface IServerInput {
     readonly keepAliveDelay?: number | 1000;
@@ -220,6 +220,13 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
             case "text/html":
                 body = dataBody.join("\n");
                 break;
+
+            case "application/x-www-form-urlencoded":
+                body = bodyParsingMethods.parseUrlEncodedBody(dataBody);
+                break;
+            
+            default:
+            throw new Error(`Unsupported Content-Type: ${contentType}`);
         }
         
         return body; 
