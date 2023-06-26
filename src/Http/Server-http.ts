@@ -83,14 +83,13 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
         const host = stringedData.split("\n")[1].split(" ")[1].slice(0, -1);
 
         const headers: Headers = this.getHeaders(stringedData.split("\r\n"));
-        const body = this.getBody(stringedData.split("\r\n"), headers);
 
         const query = this.getQuery(stringedData.split(" ")[1]);
 
         const req = new Request({
             method: requestMethod,
             endpoint: endPoint,
-            body: body,
+            body: {}, // Base case for get and delete
             headers: headers,
             query: query,
             host: host
@@ -119,6 +118,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
                 socket.end();
                 return;
             }
+            req.body = this.getBody(stringedData.split("\r\n"), headers);
             this.postRoutes[endPoint](req, res);
             const response = res.getResponse();
             socket.write(response);
@@ -133,6 +133,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
                 socket.end();
                 return;
             }
+            req.body = this.getBody(stringedData.split("\r\n"), headers);
             this.patchRoutes[endPoint](req, res);
             const response = res.getResponse();
             socket.write(response);
@@ -155,6 +156,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
           
           // generic method
           else if(this.useRoutes.hasOwnProperty(endPoint)){
+            req.body = this.getBody(stringedData.split("\r\n"), headers);
             this.useRoutes[endPoint](req, res);
             const response = res.getResponse();
             socket.write(response);
@@ -190,7 +192,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
     }
 
     public use(endPoint: string, handler: HandlerType){
-        if(this.deleteRoutes.hasOwnProperty(endPoint)) throw new Error(`Endpoint ${endPoint} can't be handle with DELETE request in more than one way`);
+        if(this.deleteRoutes.hasOwnProperty(endPoint)) throw new Error(`Endpoint ${endPoint} can't be handled in more than one way`);
         this.useRoutes[endPoint] = handler;
     }
 
