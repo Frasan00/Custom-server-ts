@@ -15,7 +15,8 @@
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.5",
-    "mqtt": "^4.3.7"
+    "mqtt": "^4.3.7",
+    "mqtt-packet": "^8.1.2"
   },
   "devDependencies": {
     "@types/node": "^20.3.1",

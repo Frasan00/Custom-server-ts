@@ -3,6 +3,7 @@ import { Request } from "./Request";
 import { Response } from "./Response";
 import { NextFunction } from "./NextFunction";
 import bodyParsingMethods from "./bodyParsingMethods";
+import httpMetods from "./types/httpMetods";
 import url from "url";
 import queryString from "querystring";
 
@@ -22,18 +23,6 @@ type RouteType = {
 };
 
 type Headers = { [key: string]: string };
-
-export enum RequestEnum {
-    GET = "GET",
-    POST = "POST",
-    PATCH = "PATCH",
-    DELETE = "DELETE",
-    HEAD = "HEAD",
-    PUT = "PUT",
-    CONNECT = "CONNECT",
-    TRACE = "TRACE",
-    OPTIONS = "OPTIONS"
-}
 
 export class Server {
 
@@ -57,7 +46,7 @@ export class Server {
 
             socket.on("data", (data) => { this.handleData(data, socket); });
         });
-
+        
         this.useRoutes = {};
         this.getRoutes = {};
         this.postRoutes = {};
@@ -65,14 +54,27 @@ export class Server {
         this.deleteRoutes = {};
     }
 
-    private handleData(data: Buffer, socket: net.Socket){
-        // packet validation
-        const stringedData = data.toString();
-        if(this.validatePackage(stringedData) === false) {
+    private badResponse(socket: net.Socket, headersError?: boolean){
+        // specific bad headers error
+        if(headersError){
             const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
+Invalid HTTP packet was sent, please format your headers correctly\r\n`;
+            socket.write(response);
+            socket.end();
+            return;
+        }
+
+        const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
 Invalid HTTP packet was sent, please format your data for an http request\r\n`;
             socket.write(response);
             socket.end();
+    }
+
+    private handleData(data: Buffer, socket: net.Socket){
+        // packet validation
+        const stringedData = data.toString();
+        if(!this.validatePackage(stringedData)) {
+            this.badResponse(socket);
             return;
         };
         console.log(stringedData) // to del
@@ -80,9 +82,8 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
         // request informations
         const requestMethod = stringedData.split(" ")[0];
         const endPoint = stringedData.split(" ")[1].split("?")[0];
-        const host = stringedData.split("\n")[1].split(" ")[1].slice(0, -1);
 
-        const headers: Headers = this.getHeaders(stringedData.split("\r\n"));
+        const headers: Headers = this.getHeaders(stringedData.split("\r\n").slice(1), socket);
 
         const query = this.getQuery(stringedData.split(" ")[1]);
 
@@ -92,12 +93,11 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
             body: {}, // Base case for get and delete
             headers: headers,
             query: query,
-            host: host
         });
         const res = new Response();
 
         if (requestMethod === "GET") {
-            if (this.getRoutes.hasOwnProperty(endPoint) === false) {
+            if (!this.getRoutes.hasOwnProperty(endPoint)) {
                 res.send("text/plain", "Cannot GET " + endPoint);
                 const response = res.getResponse();
                 socket.write(response);
@@ -111,14 +111,14 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
           } 
           
           else if (requestMethod === "POST") {
-            if (this.postRoutes.hasOwnProperty(endPoint) === false) {
+            if (!this.postRoutes.hasOwnProperty(endPoint)) {
                 res.send("text/plain", "Cannot POST " + endPoint);
                 const response = res.getResponse();
                 socket.write(response);
                 socket.end();
                 return;
             }
-            req.body = this.getBody(stringedData.split("\r\n"), headers);
+            req.body = this.getBody(stringedData.split("\r\n"), headers, socket);
             this.postRoutes[endPoint](req, res);
             const response = res.getResponse();
             socket.write(response);
@@ -126,14 +126,14 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
           } 
           
           else if (requestMethod === "PATCH") {
-            if (this.patchRoutes.hasOwnProperty(endPoint) === false) {
+            if (!this.patchRoutes.hasOwnProperty(endPoint)) {
                 res.send("text/plain", "Cannot PATCH " + endPoint);
                 const response = res.getResponse();
                 socket.write(response);
                 socket.end();
                 return;
             }
-            req.body = this.getBody(stringedData.split("\r\n"), headers);
+            req.body = this.getBody(stringedData.split("\r\n"), headers, socket);
             this.patchRoutes[endPoint](req, res);
             const response = res.getResponse();
             socket.write(response);
@@ -141,7 +141,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
           } 
           
           else if (requestMethod === "DELETE") {
-            if (this.deleteRoutes.hasOwnProperty(endPoint) === false) {
+            if (!this.deleteRoutes.hasOwnProperty(endPoint)) {
                 res.send("text/plain", "Cannot DELETE " + endPoint);
                 const response = res.getResponse();
                 socket.write(response);
@@ -156,7 +156,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
           
           // generic method
           else if(this.useRoutes.hasOwnProperty(endPoint)){
-            req.body = this.getBody(stringedData.split("\r\n"), headers);
+            req.body = this.getBody(stringedData.split("\r\n"), headers, socket);
             this.useRoutes[endPoint](req, res);
             const response = res.getResponse();
             socket.write(response);
@@ -200,7 +200,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
         this.server.listen(port, cb ? () => cb() : () => console.log("Server Listening on port "+port));
     }
 
-    private getBody(data: string[], headers: Headers): Object {
+    private getBody(data: string[], headers: Headers, socket: net.Socket): Object {
         // No body provided case
         const headersKeys = Object.keys(headers);
         if(data[data.length -1] === "" || !headersKeys.includes("Content-Type")) return {};
@@ -215,11 +215,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
                 body = JSON.parse(dataBody.join("\n"));
                 break;
 
-            case "text/plain":
-                body = dataBody.join("\n");
-                break;
-
-            case "text/html":
+            case "text/plain" || "text/html":
                 body = dataBody.join("\n");
                 break;
 
@@ -228,18 +224,25 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
                 break;
             
             default:
-            throw new Error(`Unsupported Content-Type: ${contentType}`);
+                this.badResponse(socket);
         }
         
         return body; 
     }
 
-    private getHeaders(data: string[]): Headers {
+    private getHeaders(data: string[], socket: net.Socket): Headers {
         let header: Headers = {};
+        if(!data) { this.badResponse(socket, true); }; // at least one host header has to be provided
         data.forEach((ele) => {
             if(ele === "") return; // finished headers part
-            const splittedEle = ele.split(": ");
-            if(splittedEle.length === 2){ header[splittedEle[0]] = splittedEle[1] };
+            const delimiterIndex = ele.indexOf(":");
+            if(delimiterIndex === -1) { this.badResponse(socket, true); };
+
+            const headerKey = ele.slice(0, delimiterIndex);
+            if(delimiterIndex + 1 >= ele.length) { this.badResponse(socket, true); }; // empty or not existing value for an header
+
+            const valueKey = ele.slice(delimiterIndex+1, ele.length).trimStart();
+            header[headerKey] = valueKey;
         })
         return header;
     }
@@ -260,7 +263,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
             HTTP3 = "HTTP/3",
         }
         // basic requirements
-        if(data.length === 0 || !data.includes("\r\n") || !data.includes("Host") || !data.includes("HTTP") || !Object.keys(RequestEnum).includes(data.split(" ")[0])) return false;
+        if(data.length === 0 || !data.includes("\r\n") || !data.includes("Host") || !data.includes("HTTP") || !httpMetods.includes(data.split(" ")[0])) return false;
         if(!data.includes("") || Object.keys(HttpVersions).includes(data.split(" ")[2])) return false;
         // to do: body parsed correctly
         return true;

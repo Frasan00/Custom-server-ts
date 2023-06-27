@@ -1,3 +1,0 @@
-class ServerMqtt {
-    /* TO DO */
-}
