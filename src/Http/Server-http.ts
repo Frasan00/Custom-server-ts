@@ -40,11 +40,17 @@ export class Server {
         };
 
         this.server = net.createServer(config, (socket) => {
+            let data = "";
             socket.on("connect", input?.onConnection ? input.onConnection : () => console.log("Client connected"));
             socket.on("error", input?.onError ? input.onError : () => console.error("An error occured during connection"));
             socket.on("close", input?.onClose ? input.onClose : () => console.log("Client disconnected "));
 
-            socket.on("data", (data) => { this.handleData(data, socket); });
+            socket.on("data", (chunk) => {
+                data += chunk.toString();
+                this.handleData(data, socket);
+            });
+
+            socket.on("timeout", () => this.handleData(data, socket));
         });
         
         this.useRoutes = {};
@@ -54,7 +60,7 @@ export class Server {
         this.deleteRoutes = {};
     }
 
-    private badResponse(socket: net.Socket, headersError?: boolean){
+    private badPacket(socket: net.Socket, headersError?: boolean){
         // specific bad headers error
         if(headersError){
             const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
@@ -70,22 +76,21 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
             socket.end();
     }
 
-    private handleData(data: Buffer, socket: net.Socket){
+    private handleData(data: string, socket: net.Socket){
         // packet validation
-        const stringedData = data.toString();
-        if(!this.validatePackage(stringedData)) {
-            this.badResponse(socket);
+        if(!this.validatePackage(data)) {
+            this.badPacket(socket);
             return;
         };
-        console.log(stringedData) // to del
+        console.log(data) // to del
 
         // request informations
-        const requestMethod = stringedData.split(" ")[0];
-        const endPoint = stringedData.split(" ")[1].split("?")[0];
+        const requestMethod = data.split(" ")[0];
+        const endPoint = data.split(" ")[1].split("?")[0];
 
-        const headers: Headers = this.getHeaders(stringedData.split("\r\n").slice(1), socket);
+        const headers: Headers = this.getHeaders(data.split("\r\n").slice(1), socket);
 
-        const query = this.getQuery(stringedData.split(" ")[1]);
+        const query = this.getQuery(data.split(" ")[1]);
 
         const req = new Request({
             method: requestMethod,
@@ -94,81 +99,66 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
             headers: headers,
             query: query,
         });
-        const res = new Response();
+        const res = new Response(socket);
 
         if (requestMethod === "GET") {
             if (!this.getRoutes.hasOwnProperty(endPoint)) {
-                res.send("text/plain", "Cannot GET " + endPoint);
-                const response = res.getResponse();
+                const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
+Cannot GET ${endPoint}\r\n
+`;
                 socket.write(response);
                 socket.end();
                 return;
             }
             this.getRoutes[endPoint](req, res);
-            const response = res.getResponse();
-            socket.write(response);
-            socket.end();
           } 
           
           else if (requestMethod === "POST") {
             if (!this.postRoutes.hasOwnProperty(endPoint)) {
-                res.send("text/plain", "Cannot POST " + endPoint);
-                const response = res.getResponse();
+                const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
+Cannot POST ${endPoint}\r\n
+`;
                 socket.write(response);
                 socket.end();
                 return;
             }
-            req.body = this.getBody(stringedData.split("\r\n"), headers, socket);
-            this.postRoutes[endPoint](req, res);
-            const response = res.getResponse();
-            socket.write(response);
-            socket.end();
+            this.getRoutes[endPoint](req, res);
           } 
           
           else if (requestMethod === "PATCH") {
             if (!this.patchRoutes.hasOwnProperty(endPoint)) {
-                res.send("text/plain", "Cannot PATCH " + endPoint);
-                const response = res.getResponse();
+                const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
+Cannot PATCH ${endPoint}\r\n
+`;
                 socket.write(response);
                 socket.end();
                 return;
             }
-            req.body = this.getBody(stringedData.split("\r\n"), headers, socket);
-            this.patchRoutes[endPoint](req, res);
-            const response = res.getResponse();
-            socket.write(response);
-            socket.end();
+            this.getRoutes[endPoint](req, res);
           } 
           
           else if (requestMethod === "DELETE") {
             if (!this.deleteRoutes.hasOwnProperty(endPoint)) {
-                res.send("text/plain", "Cannot DELETE " + endPoint);
-                const response = res.getResponse();
+                const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
+Cannot DELETE ${endPoint}\r\n
+`;
                 socket.write(response);
                 socket.end();
                 return;
             }
-            this.deleteRoutes[endPoint](req, res);
-            const response = res.getResponse();
-            socket.write(response);
-            socket.end();
+            this.getRoutes[endPoint](req, res);
           } 
           
           // generic method
-          else if(this.useRoutes.hasOwnProperty(endPoint)){
-            req.body = this.getBody(stringedData.split("\r\n"), headers, socket);
-            this.useRoutes[endPoint](req, res);
-            const response = res.getResponse();
-            socket.write(response);
-            socket.end();
-          }
+          else if(this.useRoutes.hasOwnProperty(endPoint)){ this.useRoutes[endPoint](req, res); }
 
           else {
-            res.send("text/plain", `The endpoint ${endPoint} is not handled in any way`);
-            const response = res.getResponse();
+            const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
+The endpoint ${endPoint} is not handled in any way\r\n
+`;
             socket.write(response);
             socket.end();
-          };    
+          };
     }
 
     public get(endPoint: string, handler: HandlerType){
@@ -224,7 +214,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
                 break;
             
             default:
-                this.badResponse(socket);
+                this.badPacket(socket);
         }
         
         return body; 
@@ -232,14 +222,14 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
 
     private getHeaders(data: string[], socket: net.Socket): Headers {
         let header: Headers = {};
-        if(!data) { this.badResponse(socket, true); }; // at least one host header has to be provided
+        if(!data) { this.badPacket(socket, true); }; // at least one host header has to be provided
         data.forEach((ele) => {
             if(ele === "") return; // finished headers part
             const delimiterIndex = ele.indexOf(":");
-            if(delimiterIndex === -1) { this.badResponse(socket, true); };
+            if(delimiterIndex === -1) { this.badPacket(socket, true); };
 
             const headerKey = ele.slice(0, delimiterIndex);
-            if(delimiterIndex + 1 >= ele.length) { this.badResponse(socket, true); }; // empty or not existing value for an header
+            if(delimiterIndex + 1 >= ele.length) { this.badPacket(socket, true); }; // empty or not existing value for an header
 
             const valueKey = ele.slice(delimiterIndex+1, ele.length).trimStart();
             header[headerKey] = valueKey;

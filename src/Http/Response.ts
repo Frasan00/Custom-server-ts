@@ -1,39 +1,40 @@
 import { ContentType } from "./types/ContentTypes";
-
-type BaseHeaderType = `HTTP/1.1 ${number}`; // to complete
+import net from "net";
 
 export type HeaderType =  {
-    baseHeader: BaseHeaderType;
+    baseHeader: string;
     contentType: ContentType;
-    value: any
 }
 
 
 export class Response {
 
-    protected header: HeaderType;
+    protected header: HeaderType | undefined;
+    protected socket: net.Socket;
+    protected status: number | undefined;
+    protected value: any;
 
-    public constructor(){
-        // Base case when send() isn't used in the cb(req, res)
+    public constructor(socket: net.Socket){
+        this.socket = socket;
+    }
+
+    public send(contentType: ContentType, value: any) {
         this.header = {
-            baseHeader: `HTTP/1.1 400`,
-            contentType: "text/plain",
-            value: "Error during http request: NO_VALUE_GIVEN_FOR_RESPONSE_IN_THE_CALLBACK"
-        }
-    }
+          baseHeader: `HTTP/1.1 ${this.status}`,
+          contentType: contentType,
+        };
+        this.value = value;
+      
+        const response = `HTTP/1.1 200 OK\r\nContent-Type: ${this.header.contentType}\n\r
+${this.value}
+`;
+        this.socket.write(response);
+        this.socket.end();
+      }
+      
 
-    public getResponse(){
-        return `${this.header.baseHeader}\r\nContent-Type: ${this.header.contentType}\r\n
-${this.header.value}\r\n`
-    }
-
-    public send(contentType: ContentType, value: any){
-        this.header.contentType = contentType;
-        this.header.value = value;
-    }
-
-    public status(status: number): Response{
-        this.header.baseHeader = `HTTP/1.1 ${status}`;
+    public responseStatus(status: number): Response{
+        this.status = status;
         return this;
     }
 
