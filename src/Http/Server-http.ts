@@ -78,7 +78,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
 
     private handleData(data: string, socket: net.Socket){
         // packet validation
-        if(!this.validatePackage(data)) {
+        if(!data || !this.validatePackage(data) || data.split("\r\n").length < 2) {
             this.badPacket(socket);
             return;
         };

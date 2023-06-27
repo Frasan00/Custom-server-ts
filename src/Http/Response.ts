@@ -6,7 +6,6 @@ export type HeaderType =  {
     contentType: ContentType;
 }
 
-
 export class Response {
 
     protected header: HeaderType | undefined;
