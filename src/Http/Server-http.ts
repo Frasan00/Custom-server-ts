@@ -68,7 +68,7 @@ Invalid HTTP packet was sent, please format your headers correctly\r\n`;
             socket.write(response);
             socket.end();
             return;
-        }
+    }
 
         const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
 Invalid HTTP packet was sent, please format your data for an http request\r\n`;
@@ -111,9 +111,9 @@ Cannot GET ${endPoint}\r\n
                 return;
             }
             this.getRoutes[endPoint](req, res);
-          } 
+        } 
           
-          else if (requestMethod === "POST") {
+        else if (requestMethod === "POST") {
             if (!this.postRoutes.hasOwnProperty(endPoint)) {
                 const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
 Cannot POST ${endPoint}\r\n
@@ -122,10 +122,11 @@ Cannot POST ${endPoint}\r\n
                 socket.end();
                 return;
             }
+            req.body = this.getBody(data.split("\r\n"), headers, socket);
             this.getRoutes[endPoint](req, res);
-          } 
+        } 
           
-          else if (requestMethod === "PATCH") {
+        else if (requestMethod === "PATCH") {
             if (!this.patchRoutes.hasOwnProperty(endPoint)) {
                 const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
 Cannot PATCH ${endPoint}\r\n
@@ -134,10 +135,11 @@ Cannot PATCH ${endPoint}\r\n
                 socket.end();
                 return;
             }
+            req.body = this.getBody(data.split("\r\n"), headers, socket);
             this.getRoutes[endPoint](req, res);
-          } 
+        } 
           
-          else if (requestMethod === "DELETE") {
+        else if (requestMethod === "DELETE") {
             if (!this.deleteRoutes.hasOwnProperty(endPoint)) {
                 const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
 Cannot DELETE ${endPoint}\r\n
@@ -147,18 +149,21 @@ Cannot DELETE ${endPoint}\r\n
                 return;
             }
             this.getRoutes[endPoint](req, res);
-          } 
+        } 
           
-          // generic method
-          else if(this.useRoutes.hasOwnProperty(endPoint)){ this.useRoutes[endPoint](req, res); }
+        // generic method
+        else if(this.useRoutes.hasOwnProperty(endPoint)){ 
+            req.body = this.getBody(data.split("\r\n"), headers, socket);
+            this.useRoutes[endPoint](req, res); 
+        }
 
-          else {
+        else {
             const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
 The endpoint ${endPoint} is not handled in any way\r\n
 `;
             socket.write(response);
             socket.end();
-          };
+        };
     }
 
     public get(endPoint: string, handler: HandlerType){
