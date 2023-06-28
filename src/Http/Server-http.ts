@@ -77,7 +77,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
     }
 
     private handleData(data: string, socket: net.Socket){
-        // packet validation
+        // packet validation, the package has to have at least 2 rows with head row (METHOD PATH HTTP ver.) and one header host
         if(!data || !this.validatePackage(data) || data.split("\r\n").length < 2) {
             this.badPacket(socket);
             return;
@@ -214,14 +214,17 @@ The endpoint ${endPoint} is not handled in any way\r\n
                 break;
             
             default:
-                this.badPacket(socket);
+                const response = `HTTP/1.1 400\r\nContent-Type: text/plain\r\n
+This body type can't be handled by this server\r\n`;
+                socket.write(response);
+                socket.end();
         }
         
         return body; 
     }
 
     private getHeaders(data: string[], socket: net.Socket): Headers {
-        let header: Headers = {};
+        let headers: Headers = {};
         if(!data) { this.badPacket(socket, true); }; // at least one host header has to be provided
         data.forEach((ele) => {
             if(ele === "") return; // finished headers part
@@ -231,10 +234,10 @@ The endpoint ${endPoint} is not handled in any way\r\n
             const headerKey = ele.slice(0, delimiterIndex);
             if(delimiterIndex + 1 >= ele.length) { this.badPacket(socket, true); }; // empty or not existing value for an header
 
-            const valueKey = ele.slice(delimiterIndex+1, ele.length).trimStart();
-            header[headerKey] = valueKey;
+            const valueKey = ele.slice(delimiterIndex+1, ele.length).trimStart(); // deletes possible " " space in the beginning of an header
+            headers[headerKey] = valueKey;
         })
-        return header;
+        return headers;
     }
 
     private getQuery(data: string): Object{
