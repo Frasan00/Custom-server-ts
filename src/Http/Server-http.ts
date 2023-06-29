@@ -66,33 +66,53 @@ export class Server {
     }
 
     private isPackageCompleted(data: string): boolean {
-        // base case
-        if(!data || !data.includes("\r\n" || data.split("\r\n").length < 2)) return false;
-
-        // no body case
-        if(data.includes('') && !data.includes("Content-type")) return true;
-
-        // body included case
+        // Base case
+        if (!data || !data.includes("\r\n" || data.split("\r\n").length < 2)) {
+          return false;
+        }
+      
+        // No body given case
+        if (data.includes("") && !data.includes("Content-Type")) {
+          return true;
+        }
+      
+        // Body included case
         if (data.includes("Content-Type")) {
-            const headersEndIndex = data.indexOf("\r\n\r\n");
-            const headers = data.substring(0, headersEndIndex);
-            const contentLengthHeader = headers.split("\r\n").find((header) =>
-              header.startsWith("Content-Length:")
-            );
-        
+          const headersEndIndex = data.indexOf("\r\n\r\n");
+          const headers = data.substring(0, headersEndIndex);
+      
+          // Check for Transfer-Encoding: chunked header
+          if (headers.includes("Transfer-Encoding: chunked")) {
+            const bodyStartIndex = headersEndIndex + 4;
+            const body = data.substring(bodyStartIndex);
+      
+            // checks chunk-end
+            const chunkedFooter = "\r\n0\r\n\r\n";
+            if (body.endsWith(chunkedFooter)) {
+              return true;
+            }
+          } 
+          
+          else {
+            // Content-Length header provided
+            const contentLengthHeader = headers
+              .split("\r\n")
+              .find((header) => header.startsWith("Content-Length:"));
+      
             if (contentLengthHeader) {
-                const contentLength = parseInt(
-                    contentLengthHeader.split(":")[1].trimStart(), 10);
-                const body = data.substring(headersEndIndex + 4);
-            
-                if (body.length >= contentLength) {
-                    return true;
-                }
+              const contentLength = parseInt(
+                contentLengthHeader.split(":")[1].trimStart(), 10);
+              const body = data.substring(headersEndIndex + 4); // skips \r\n\r\n
+      
+              if (body.length >= contentLength) {
+                return true;
+              }
             }
           }
-
+        }
+      
         return false;
-    }
+      }
 
     private badPacket(socket: net.Socket, headersError?: boolean){
         // specific bad headers error
