@@ -9,6 +9,7 @@ import queryString from "querystring";
 
 interface IServerInput {
     readonly keepAliveDelay?: number | 1000;
+    readonly socketTimeout?: number;
     readonly onConnection?: () => any;
     readonly onError?: (error: Error) => void;
     readonly onClose?: () => void;
@@ -41,16 +42,20 @@ export class Server {
 
         this.server = net.createServer(config, (socket) => {
             let data = "";
+            if(input?.socketTimeout) socket.setTimeout(input.socketTimeout);
+
             socket.on("connect", input?.onConnection ? input.onConnection : () => console.log("Client connected"));
             socket.on("error", input?.onError ? input.onError : () => console.error("An error occured during connection"));
             socket.on("close", input?.onClose ? input.onClose : () => console.log("Client disconnected "));
+            socket.on("timeout", () => this.handleData(data, socket));
 
             socket.on("data", (chunk) => {
                 data += chunk.toString();
-                this.handleData(data, socket);
+                if(this.isPackageCompleted(data)) {
+                    this.handleData(data, socket);
+                    data = "";
+                }
             });
-
-            socket.on("timeout", () => this.handleData(data, socket));
         });
         
         this.useRoutes = {};
@@ -58,6 +63,35 @@ export class Server {
         this.postRoutes = {};
         this.patchRoutes = {};
         this.deleteRoutes = {};
+    }
+
+    private isPackageCompleted(data: string): boolean {
+        // base case
+        if(!data || !data.includes("\r\n" || data.split("\r\n").length < 2)) return false;
+
+        // no body case
+        if(data.includes('') && !data.includes("Content-type")) return true;
+
+        // body included case
+        if (data.includes("Content-Type")) {
+            const headersEndIndex = data.indexOf("\r\n\r\n");
+            const headers = data.substring(0, headersEndIndex);
+            const contentLengthHeader = headers.split("\r\n").find((header) =>
+              header.startsWith("Content-Length:")
+            );
+        
+            if (contentLengthHeader) {
+                const contentLength = parseInt(
+                    contentLengthHeader.split(":")[1].trimStart(), 10);
+                const body = data.substring(headersEndIndex + 4);
+            
+                if (body.length >= contentLength) {
+                    return true;
+                }
+            }
+          }
+
+        return false;
     }
 
     private badPacket(socket: net.Socket, headersError?: boolean){
@@ -82,7 +116,7 @@ Invalid HTTP packet was sent, please format your data for an http request\r\n`;
             this.badPacket(socket);
             return;
         };
-        console.log(data) // to del
+        console.log(data.split("\r\n")) // to del
 
         // request informations
         const requestMethod = data.split(" ")[0];
