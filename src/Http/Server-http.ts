@@ -51,7 +51,7 @@ export class Server {
 
             socket.on("data", (chunk) => {
                 data += chunk.toString();
-                if(this.isPackageCompleted(data)) {
+                if(this.isPackageCompleted(data, socket)) {
                     this.handleData(data, socket);
                     data = "";
                 }
@@ -65,52 +65,44 @@ export class Server {
         this.deleteRoutes = {};
     }
 
-    private isPackageCompleted(data: string): boolean {
+    private isPackageCompleted(data: string, socket: net.Socket): boolean {
         // Base case
-        if (!data || !data.includes("\r\n" || data.split("\r\n").length < 2)) {
-          return false;
-        }
+        if (!data || !data.includes("\r\n" || data.split("\r\n").length < 2)) { return false; }
       
         // No body given case
-        if (data.includes("") && !data.includes("Content-Type")) {
-          return true;
-        }
+        if (data.includes("") && !data.includes("Content-Type")) { return true; }
       
         // Body included case
         if (data.includes("Content-Type")) {
-          const headersEndIndex = data.indexOf("\r\n\r\n");
-          const headers = data.substring(0, headersEndIndex);
-      
-          // Check for Transfer-Encoding: chunked header
-          if (headers.includes("Transfer-Encoding: chunked")) {
-            const bodyStartIndex = headersEndIndex + 4;
-            const body = data.substring(bodyStartIndex);
-      
-            // checks chunk-end
-            const chunkedFooter = "\r\n0\r\n\r\n";
-            if (body.endsWith(chunkedFooter)) {
-              return true;
-            }
-          } 
-          
-          else {
-            // Content-Length header provided
+            const headersEndIndex = data.indexOf("\r\n\r\n");
+            const headers = data.substring(0, headersEndIndex);
+        
+            // Check for Transfer-Encoding: chunked header
+            if (headers.includes("Transfer-Encoding: chunked")) {
+                const bodyStartIndex = headersEndIndex + 4;
+                const body = data.substring(bodyStartIndex);
+        
+                // checks chunk-end
+                const chunkedFooter = "\r\n0\r\n\r\n";
+                if (body.endsWith(chunkedFooter)) { return true; }
+            } 
+        // Content-Length header provided and not chunked body
+        else {
             const contentLengthHeader = headers
-              .split("\r\n")
-              .find((header) => header.startsWith("Content-Length:"));
+            .split("\r\n")
+            .find((header) => header.startsWith("Content-Length:"));
       
             if (contentLengthHeader) {
-              const contentLength = parseInt(
-                contentLengthHeader.split(":")[1].trimStart(), 10);
-              const body = data.substring(headersEndIndex + 4); // skips \r\n\r\n
-      
-              if (body.length >= contentLength) {
-                return true;
-              }
+                if(contentLengthHeader.split(":").length !== 2) this.badPacket(socket); // bad typed content length
+                const contentLength = parseInt(contentLengthHeader.split(":")[1].trimStart(), 10);
+                const body = data.substring(headersEndIndex + 4); // skips \r\n\r\n
+        
+                if (body.length >= contentLength) {
+                    return true;
+                }
             }
           }
         }
-      
         return false;
       }
 
@@ -177,7 +169,7 @@ Cannot POST ${endPoint}\r\n
                 return;
             }
             req.body = this.getBody(data.split("\r\n"), headers, socket);
-            this.getRoutes[endPoint](req, res);
+            this.postRoutes[endPoint](req, res);
         } 
           
         else if (requestMethod === "PATCH") {
@@ -190,7 +182,7 @@ Cannot PATCH ${endPoint}\r\n
                 return;
             }
             req.body = this.getBody(data.split("\r\n"), headers, socket);
-            this.getRoutes[endPoint](req, res);
+            this.patchRoutes[endPoint](req, res);
         } 
           
         else if (requestMethod === "DELETE") {
@@ -202,7 +194,7 @@ Cannot DELETE ${endPoint}\r\n
                 socket.end();
                 return;
             }
-            this.getRoutes[endPoint](req, res);
+            this.deleteRoutes[endPoint](req, res);
         } 
           
         // generic method
