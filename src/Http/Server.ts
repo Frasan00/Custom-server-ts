@@ -1,7 +1,6 @@
 import net from "net";
 import { Request } from "./Request";
 import { Response } from "./Response";
-import { NextFunction } from "./NextFunction";
 import bodyParsingMethods from "./bodyParsingMethods";
 import httpMetods from "./types/httpMetods";
 import url from "url";
@@ -14,8 +13,6 @@ interface IServerInput {
     readonly onError?: (error: Error) => void;
     readonly onClose?: () => void;
 }
-
-export type MiddlewareType = (req: Request, res: Response, nextFunc: NextFunction) => any;
 
 export type HandlerType = (req: Request, res: Response) => any;
 
