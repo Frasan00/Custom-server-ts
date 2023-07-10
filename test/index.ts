@@ -1,5 +1,4 @@
 import { Server } from "../src/Http/Server";
-import { Broker } from "../src/mqtt/Broker"; 
 
 // HTTP
 const server = new Server();
@@ -15,10 +14,3 @@ server.post("/paolo", (req, res) => {
 });
 
 server.listen(5000, () => console.log("Server listening on port "+5000));
-
-
-// MQTT
-
-const broker = new Broker();
-
-broker.listen(1883);
